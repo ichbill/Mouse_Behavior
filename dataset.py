@@ -84,6 +84,7 @@ class MouseDataset(Dataset):
 
         self.image_files = [f for f in os.listdir(frames_folder) if os.path.isfile(os.path.join(frames_folder, f))]
         self.frames_folder = frames_folder
+        print(self.frames_folder)
         self.pred_path = pred_path
         self.label_path = label_path
         self.audio_path = audio_path
@@ -106,11 +107,18 @@ class MouseDataset(Dataset):
         pose_keypoints = interploate_pose(pose_pred)
 
         # load labels
+        #check the rame folder path
+        '''
         if 'CQ' in self.frames_folder:
+            print('CQ')
             label_data = self.load_CQ_labels(len(self.image_files))
         elif 'Formalin' in self.frames_folder:
+            print('Formalin')
             label_data = self.load_Formalin_labels(len(self.image_files))
-
+        else:
+            print("Your frame folder doesn;'t have either CQ nor Formaline")
+        '''
+        label_data = self.load_Formalin_labels(len(self.image_files))
         # sliding window
         if self.sliding_window:
             self.behavior_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, label_data)
