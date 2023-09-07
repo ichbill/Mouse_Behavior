@@ -32,7 +32,7 @@ def get_dataset():
     audio_path='/home/nikk/dataset/Formalin_Ultrasound_recording.wav'
 
    
-    dataset = MouseDataset(video_path, pred_path, label_path, audio_path)
+    dataset = MouseDataset(video_path, pred_path, label_path, audio_path, 1500)
 
     train_size = int(0.8 * len(dataset))
     test_size = len(dataset) - train_size
@@ -84,10 +84,10 @@ def train(model,train_loader,optimizer,batch_size):
     print(train_num_batches)
     # dist.barrier()
     criterion = nn.CrossEntropyLoss().to(device)
-    for steps, (images, behavior_feat, labels) in enumerate(tqdm(train_loader)):
-        images, behavior_feat, labels = images.to(device), behavior_feat.to(device), labels.to(device)
+    for steps, (images, behavior_feat, audio, labels) in enumerate(tqdm(train_loader)):
+        images, behavior_feat, audio, labels = images.to(device), behavior_feat.to(device), audio.to(device), labels.to(device)
         
-        output = model(images, behavior_feat)
+        output = model(audio)
         loss = criterion(output, labels.float())
 
         optimizer.zero_grad()
@@ -138,22 +138,25 @@ def val(model, val_loader,batch_size):
     total = 0.0
     correct = 0.0
     with torch.no_grad():
-        for images, behavior_feat, labels in val_loader:
-            images, behavior_feat, labels = images.to(device), behavior_feat.to(device), labels.to(device)
-            outputs = model(images, behavior_feat)
+        for images, behavior_feat, audio, labels in val_loader:
+            images, behavior_feat, audio, labels = images.to(device), behavior_feat.to(device), audio.to(device), labels.to(device)
+            outputs = model(audio)
 
-            loss = criterion(outputs, labels.float())
-            
+            # outputs = model()
+
             probs = torch.sigmoid(outputs)
-            preds = (probs>0.5).float()
-            
+            print(probs)
+            preds = (probs > 0.5).float()
+            print(preds)
             total += labels.size(0)
-            correct += (preds==labels).all(dim=1).sum().item()
+            correct += (preds == labels).all(dim=1).sum().item()
+            print(correct)
+            loss = criterion(outputs, labels.float())
             
             loss_ = {'loss': torch.tensor(loss.item()).to(device)}
             val_loss += reduce_dict(loss_)['loss'].item()
-
-    accuracy = 100 * correct/total
+        print(correct)
+    accuracy = 100 * (correct/total)
     val_loss_val = val_loss / val_num_batches
     return val_loss_val, accuracy
 
@@ -163,7 +166,7 @@ def run(rank, world_size):
     device = torch.device(f"cuda:{rank}")
     torch.manual_seed(1234)
     train_loader, val_loader, batch_size = get_dataset()
-    model = MouseModel(12, 3).to(device)
+    model = MouseModel(50, 3).to(device)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model) # use if model contains batchnorm.
     model = DDP(model,device_ids=[rank],output_device=rank)
     criterion = nn.BCEWithLogitsLoss()
@@ -185,14 +188,17 @@ def run(rank, world_size):
             "val_loss_val": [],
             "val_acc_val": []
         }
-    for epoch in range(10):
+    for epoch in range(50):
         train_loss_val = train(model,train_loader,optimizer,batch_size)
         val_loss_val, val_accuraccy = val(model,val_loader,batch_size)
         print(val_loss_val)
+        print(val_accuraccy)
+        print("Done")
+        print()
+        print(f'Rank {rank} epoch {epoch}: {val_accuraccy:.2f}')
+        #rint(f'Rank {rank} epoch {epoch}: {train_loss_val:.2f}')
+        print(f'Rank {rank} epoch {epoch}: {val_loss_val:2f}')
         if rank == 0:
-            print(f'Rank {rank} epoch {epoch}: {val_accuraccy:.2f}')
-            #rint(f'Rank {rank} epoch {epoch}: {train_loss_val:.2f}')
-            print(f'Rank {rank} epoch {epoch}: {val_loss_val:2f}')
             history['train_loss_val'].append(train_loss_val)
             history['val_loss_val'].append(val_loss_val)
             history['val_acc_val'].append(val_accuraccy)

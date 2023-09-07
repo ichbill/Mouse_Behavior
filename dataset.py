@@ -4,6 +4,7 @@ import torchaudio
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
+import torchaudio.functional as F
 
 import json
 import numpy as np
@@ -60,10 +61,17 @@ def time_to_frame(time):
     total_seconds = minutes * 60 + seconds
     return total_seconds * 30
 
-def sliding_window(pose_keypoints, label_data, step=10, stride=10):
+def sliding_window(pose_keypoints, audio, label_data, step=10, stride=10):
     # sliding window for pose
     bias = len(pose_keypoints)%step
+    print(pose_keypoints.shape)
+    print(bias)
+    print(pose_keypoints[bias:].shape)
+
+    
+    print(audio.shape)
     behavior_feat = np.array([pose_keypoints[bias:][i:i+step] for i in range(0,len(pose_keypoints[bias:]),stride)])
+    audio_feat = np.array([audio[bias:][i:i+step] for i in range(0,len(audio[bias:]),stride)])
 
     # sliding window for labels
     label_window = np.array([label_data[bias:][i:i+step] for i in range(0,len(label_data[bias:]),stride)])
@@ -72,14 +80,14 @@ def sliding_window(pose_keypoints, label_data, step=10, stride=10):
 
     valid_indices = ~(np.all(one_hot_labels == [0,0,0], axis=1))
     behavior_feat = behavior_feat[valid_indices]
+    audio_feat = audio_feat[valid_indices]
     one_hot_labels = one_hot_labels[valid_indices]
     # print(behavior_feat.shape, one_hot_labels.shape)
     # breakpoint()
-
-    return behavior_feat, one_hot_labels, valid_indices
+    return behavior_feat, audio_feat, one_hot_labels, valid_indices
 
 class MouseDataset(Dataset):
-    def __init__(self, frames_folder, pred_path, label_path, audio_path):
+    def __init__(self, frames_folder, pred_path, label_path, audio_path, resampling_rate):
         super(MouseDataset, self).__init__()
 
         self.image_files = [f for f in os.listdir(frames_folder) if os.path.isfile(os.path.join(frames_folder, f))]
@@ -93,7 +101,7 @@ class MouseDataset(Dataset):
         self.step = 10
         self.stride = 10
         self.bias = len(self.image_files) % self.step
-        
+        self.resampling_rate = resampling_rate
         self.transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor()
@@ -101,7 +109,17 @@ class MouseDataset(Dataset):
 
         # load audio
         self.waveform, self.sample_rate = torchaudio.load(self.audio_path)
+        resampled_audio = F.resample(self.waveform, self.sample_rate, self.resampling_rate, rolloff=0.99)
         
+        audio_tensor = []
+        for i in range (4650, len(resampled_audio[0]), 50):
+            arr = np.array(resampled_audio[0, i:i+50])
+            if(len(arr)==50):
+                audio_tensor.append(arr)
+            else:
+                pass
+        audio_array = np.asarray(audio_tensor)
+        #audio_array = np.asarray(audio_tensor)
         # load pose prediction
         pose_pred = self.load_predictions(len(self.image_files))
         pose_keypoints = interploate_pose(pose_pred)
@@ -121,7 +139,7 @@ class MouseDataset(Dataset):
         label_data = self.load_Formalin_labels(len(self.image_files))
         # sliding window
         if self.sliding_window:
-            self.behavior_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, label_data)
+            self.behavior_feat, self.audio_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, audio_array, label_data)
         self.all_indices = np.arange((len(self.image_files) - self.bias - self.step) // self.stride + 1)
 
     def read_label(self, image_file):
@@ -213,4 +231,8 @@ class MouseDataset(Dataset):
         behavior_feat = self.behavior_feat[idx]   
         behavior_feat_tensor = torch.tensor(behavior_feat)
 
-        return images_tensor, behavior_feat_tensor, labels_tensor
+        #iterate over audio features
+        audio_feat = self.audio_feat[idx]   
+        audio_feat_tensor = torch.tensor(audio_feat)
+
+        return images_tensor, behavior_feat_tensor, audio_feat, labels_tensor
