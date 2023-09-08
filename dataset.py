@@ -61,21 +61,31 @@ def time_to_frame(time):
     total_seconds = minutes * 60 + seconds
     return total_seconds * 30
 
-def sliding_window(pose_keypoints, audio, label_data, step=10, stride=10):
+def sliding_window(pose_keypoints, audio, label_data, args):
+    step = args.step
+    stride = args.stride
     # sliding window for pose
+    if args.local_rank == 0:
+        print('pose_keypoints shape:', pose_keypoints.shape)
     bias = len(pose_keypoints)%step
-    print(pose_keypoints.shape)
-    print(bias)
-    print(pose_keypoints[bias:].shape)
-
-    
-    print(audio.shape)
     behavior_feat = np.array([pose_keypoints[bias:][i:i+step] for i in range(0,len(pose_keypoints[bias:]),stride)])
+    if args.local_rank == 0:
+        print('pose_keypoints sliding window shape:', behavior_feat.shape)
+
+    # sliding window for audio
+    if args.local_rank == 0:
+        print('audio_feat shape:', audio.shape)
     audio_feat = np.array([audio[bias:][i:i+step] for i in range(0,len(audio[bias:]),stride)])
+    if args.local_rank == 0:
+        print('audio_feat sliding window shape:', audio_feat.shape)
 
     # sliding window for labels
+    if args.local_rank == 0:
+        print('label_data shape:', len(label_data))
     label_window = np.array([label_data[bias:][i:i+step] for i in range(0,len(label_data[bias:]),stride)])
     one_hot_labels = np.array([one_hot_encode(list(set(x))) for x in label_window])
+    if args.local_rank == 0:
+        print('label_data sliding window shape:', one_hot_labels.shape)
     # one_hot_labels = np.array([one_hot_encode(x) for x in labels])
 
     valid_indices = ~(np.all(one_hot_labels == [0,0,0], axis=1))
@@ -87,12 +97,11 @@ def sliding_window(pose_keypoints, audio, label_data, step=10, stride=10):
     return behavior_feat, audio_feat, one_hot_labels, valid_indices
 
 class MouseDataset(Dataset):
-    def __init__(self, frames_folder, pred_path, label_path, audio_path, resampling_rate):
+    def __init__(self, frames_folder, pred_path, label_path, audio_path, args):
         super(MouseDataset, self).__init__()
 
         self.image_files = [f for f in os.listdir(frames_folder) if os.path.isfile(os.path.join(frames_folder, f))]
         self.frames_folder = frames_folder
-        print(self.frames_folder)
         self.pred_path = pred_path
         self.label_path = label_path
         self.audio_path = audio_path
@@ -101,7 +110,7 @@ class MouseDataset(Dataset):
         self.step = 10
         self.stride = 10
         self.bias = len(self.image_files) % self.step
-        self.resampling_rate = resampling_rate
+        self.resampling_rate = args.resampling_rate
         self.transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor()
@@ -109,7 +118,11 @@ class MouseDataset(Dataset):
 
         # load audio
         self.waveform, self.sample_rate = torchaudio.load(self.audio_path)
+        if args.local_rank == 0:
+            print('Original audio shape: ', self.waveform.shape)
         resampled_audio = F.resample(self.waveform, self.sample_rate, self.resampling_rate, rolloff=0.99)
+        if args.local_rank == 0:
+            print('Resampled audio shape: ', resampled_audio.shape)
         
         audio_tensor = []
         for i in range (4650, len(resampled_audio[0]), 50):
@@ -119,27 +132,22 @@ class MouseDataset(Dataset):
             else:
                 pass
         audio_array = np.asarray(audio_tensor)
-        #audio_array = np.asarray(audio_tensor)
+        if args.local_rank == 0:
+            print('Audio shape divided into frames: ', audio_array.shape)
+
         # load pose prediction
         pose_pred = self.load_predictions(len(self.image_files))
         pose_keypoints = interploate_pose(pose_pred)
 
         # load labels
-        #check the rame folder path
-        '''
         if 'CQ' in self.frames_folder:
-            print('CQ')
             label_data = self.load_CQ_labels(len(self.image_files))
         elif 'Formalin' in self.frames_folder:
-            print('Formalin')
             label_data = self.load_Formalin_labels(len(self.image_files))
-        else:
-            print("Your frame folder doesn;'t have either CQ nor Formaline")
-        '''
-        label_data = self.load_Formalin_labels(len(self.image_files))
+
         # sliding window
         if self.sliding_window:
-            self.behavior_feat, self.audio_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, audio_array, label_data)
+            self.behavior_feat, self.audio_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, audio_array, label_data, args)
         self.all_indices = np.arange((len(self.image_files) - self.bias - self.step) // self.stride + 1)
 
     def read_label(self, image_file):
