@@ -11,31 +11,35 @@ import numpy as np
 import pandas as pd
 
 def one_hot_encode(labels):
-    one_hot_labels = [0,0,0]
-    if ' habituation' in labels:
-        one_hot_labels[0] = 1
+    one_hot_labels = [0,0]
+    # if ' habituation' in labels:
+    #     one_hot_labels[0] = 1
     if ' flinching' in labels:
-        one_hot_labels[1] = 1
+        one_hot_labels[0] = 1
     if ' licking' in labels:
-        one_hot_labels[2] = 1
+        one_hot_labels[1] = 1
     return one_hot_labels
 
 def interploate_pose(pose_pred):
     pose_keypoints = []
     for i in range(len(pose_pred)):
-        if pose_pred[i] == [0]:
+        if pose_pred[i] == [0]: # if no pose prediction
+            # search two nearest valid pose prediction
+            # search previous valid pose prediction
             prev_valid = None
             for j in range(i-1, -1, -1):
                 if not pose_pred[j] == [0]:
                     prev_valid = pose_pred[j]
                     break
-
+            
+            # search next valid pose prediction
             next_valid = None
             for j in range(i+1, len(pose_pred)):
                 if not pose_pred[j] == [0]:
                     next_valid = pose_pred[j]
                     break
 
+            # interpolate the pose prediction by averaging two nearest valid pose prediction
             if prev_valid is not None and next_valid is not None:
                 keypoints = (np.array(prev_valid['keypoints']) + np.array(next_valid['keypoints'])) / 2
             elif prev_valid is not None:
@@ -88,12 +92,11 @@ def sliding_window(pose_keypoints, audio, label_data, args):
         print('label_data sliding window shape:', one_hot_labels.shape)
     # one_hot_labels = np.array([one_hot_encode(x) for x in labels])
 
-    valid_indices = ~(np.all(one_hot_labels == [0,0,0], axis=1))
+    # valid indices mean the sliding window contains at least one label
+    valid_indices = np.arange(len(one_hot_labels))
     behavior_feat = behavior_feat[valid_indices]
     audio_feat = audio_feat[valid_indices]
     one_hot_labels = one_hot_labels[valid_indices]
-    # print(behavior_feat.shape, one_hot_labels.shape)
-    # breakpoint()
     return behavior_feat, audio_feat, one_hot_labels, valid_indices
 
 class MouseDataset(Dataset):
