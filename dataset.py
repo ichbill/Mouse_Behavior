@@ -92,8 +92,8 @@ def sliding_window(pose_keypoints, audio, label_data, args):
         print('label_data sliding window shape:', one_hot_labels.shape)
     # one_hot_labels = np.array([one_hot_encode(x) for x in labels])
 
-    # valid indices mean the sliding window contains at least one label
-    valid_indices = np.arange(len(one_hot_labels))
+    # valid_indices = ~(np.all(one_hot_labels == [0,0], axis=1))
+    valid_indices = np.ones((len(one_hot_labels),), dtype=bool)
     behavior_feat = behavior_feat[valid_indices]
     audio_feat = audio_feat[valid_indices]
     one_hot_labels = one_hot_labels[valid_indices]
