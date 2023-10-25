@@ -5,10 +5,30 @@ from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import torchaudio.functional as F
-
+import torchaudio.transforms as T
 import json
 import numpy as np
 import pandas as pd
+
+def mel_spectrogram(x, sampling_rate):
+    
+    x /= torch.max(torch.abs(x))
+
+    n_fft = 10240 #int(0.25*sampling_rate)
+    win_length = None
+    hop_length = 2048
+    n_mels = 64
+    mel_spectrogram = T.MelSpectrogram(
+        sample_rate=sampling_rate,
+        n_fft=n_fft,
+        win_length=win_length,
+        hop_length=hop_length,
+        mel_scale="htk",
+        n_mels=n_mels
+        )
+
+    waveform_mfcc = mel_spectrogram(x)
+    return 10*np.log10(waveform_mfcc+1e-6)
 
 def one_hot_encode(labels):
     one_hot_labels = [0,0]
@@ -16,7 +36,7 @@ def one_hot_encode(labels):
     #     one_hot_labels[0] = 1
     if ' flinching' in labels:
         one_hot_labels[0] = 1
-    if ' licking' in labels:
+    elif ' licking' in labels:
         one_hot_labels[1] = 1
     return one_hot_labels
 
@@ -56,18 +76,15 @@ def interploate_pose(pose_pred):
 
 def time_to_frame(time):
     time_str = str(time)
-    if len(time_str) > 5:
-        time_str = time_str[:5] # handle 29:48:00 in Formalin_acute_pain_1.csv
-    if '.' in time_str:
-        minutes, seconds = map(int, time_str.split('.'))
-    elif ':' in time_str:
-        minutes, seconds = map(int, time_str.split(':'))
+    time_parts = time_str.split(':')
+    minutes = int(time_parts[0])
+    seconds = int(time_parts[1])
     total_seconds = minutes * 60 + seconds
     return total_seconds * 30
 
 def sliding_window(pose_keypoints, audio, label_data, args):
-    step = args.step
-    stride = args.stride
+    step = 30
+    stride = 30
     # sliding window for pose
     if args.local_rank == 0:
         print('pose_keypoints shape:', pose_keypoints.shape)
@@ -79,25 +96,25 @@ def sliding_window(pose_keypoints, audio, label_data, args):
     # sliding window for audio
     if args.local_rank == 0:
         print('audio_feat shape:', audio.shape)
-    audio_feat = np.array([audio[bias:][i:i+step] for i in range(0,len(audio[bias:]),stride)])
+    audio_feat = audio
     if args.local_rank == 0:
         print('audio_feat sliding window shape:', audio_feat.shape)
 
     # sliding window for labels
     if args.local_rank == 0:
         print('label_data shape:', len(label_data))
-    label_window = np.array([label_data[bias:][i:i+step] for i in range(0,len(label_data[bias:]),stride)])
-    one_hot_labels = np.array([one_hot_encode(list(set(x))) for x in label_window])
+    one_hot_labels = np.array([one_hot_encode(x) for x in label_data])
     if args.local_rank == 0:
         print('label_data sliding window shape:', one_hot_labels.shape)
     # one_hot_labels = np.array([one_hot_encode(x) for x in labels])
 
-    # valid_indices = ~(np.all(one_hot_labels == [0,0], axis=1))
-    valid_indices = np.ones((len(one_hot_labels),), dtype=bool)
+    valid_indices = ~(np.all(one_hot_labels == [0,0], axis=1))
+    # valid_indices = np.ones((len(one_hot_labels),), dtype=bool)
     behavior_feat = behavior_feat[valid_indices]
     audio_feat = audio_feat[valid_indices]
     one_hot_labels = one_hot_labels[valid_indices]
     return behavior_feat, audio_feat, one_hot_labels, valid_indices
+
 
 class MouseDataset(Dataset):
     def __init__(self, frames_folder, pred_path, label_path, audio_path, args):
@@ -110,10 +127,10 @@ class MouseDataset(Dataset):
         self.audio_path = audio_path
 
         self.sliding_window = True
-        self.step = 10
-        self.stride = 10
+        self.step = 30
+        self.stride = 30
         self.bias = len(self.image_files) % self.step
-        self.resampling_rate = args.resampling_rate
+        # self.resampling_rate = args.resampling_rate
         self.transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor()
@@ -121,20 +138,27 @@ class MouseDataset(Dataset):
 
         # load audio
         self.waveform, self.sample_rate = torchaudio.load(self.audio_path)
-        if args.local_rank == 0:
-            print('Original audio shape: ', self.waveform.shape)
-        resampled_audio = F.resample(self.waveform, self.sample_rate, self.resampling_rate, rolloff=0.99)
-        if args.local_rank == 0:
-            print('Resampled audio shape: ', resampled_audio.shape)
         
+        #No need for resampling
+        # if args.local_rank == 0:
+        #     print('Original audio shape: ', self.waveform.shape)
+        # resampled_audio = F.resample(self.waveform, self.sample_rate, self.resampling_rate, rolloff=0.99)
+        # if args.local_rank == 0:
+            # print('Resampled audio shape: ', resampled_audio.shape)
+
         audio_tensor = []
-        for i in range (4650, len(resampled_audio[0]), 50):
-            arr = np.array(resampled_audio[0, i:i+50])
-            if(len(arr)==50):
-                audio_tensor.append(arr)
+        for i in range (0, len(self.waveform[0]), self.sample_rate):
+            arr = np.array(self.waveform[0, i:i+self.sample_rate])
+            if(len(arr)==self.sample_rate):
+                spec = mel_spectrogram(torch.tensor(arr).float(), self.sample_rate)
+                # print(spec.shape)
+                spec = spec.unsqueeze(0)
+                spec = spec.numpy()
+                audio_tensor.append(spec)
             else:
                 pass
         audio_array = np.asarray(audio_tensor)
+        audio_array = audio_array[:int((len(self.image_files))/30),:,:,:]
         if args.local_rank == 0:
             print('Audio shape divided into frames: ', audio_array.shape)
 
@@ -143,14 +167,13 @@ class MouseDataset(Dataset):
         pose_keypoints = interploate_pose(pose_pred)
 
         # load labels
-        if 'CQ' in self.frames_folder:
-            label_data = self.load_CQ_labels(len(self.image_files))
-        elif 'Formalin' in self.frames_folder:
-            label_data = self.load_Formalin_labels(len(self.image_files))
+        label_data = self.load_Formalin_labels(len(self.image_files))
+
 
         # sliding window
         if self.sliding_window:
             self.behavior_feat, self.audio_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, audio_array, label_data, args)
+            
         self.all_indices = np.arange((len(self.image_files) - self.bias - self.step) // self.stride + 1)
 
     def read_label(self, image_file):
@@ -158,6 +181,7 @@ class MouseDataset(Dataset):
         return int(label)
 
     def load_predictions(self, total_frames):
+        #print(total_frames)
         with open(self.pred_path) as f:
             pose_top = json.load(f)
             # print(len(pose_top))
@@ -167,21 +191,16 @@ class MouseDataset(Dataset):
         # Sort annotations
         for i in range(len(pose_top)):
             image_id = pose_top[i]['image_id']
-            if not pose_pred[image_id] == [0]:
-                if pose_top[i]['score'] > pose_pred[image_id]['score']:
+            #print(pose_pred[image_id])
+            #print([image_id, total_frames])
+            if image_id < total_frames:
+                if not pose_pred[image_id] == [0]:
+                    if pose_top[i]['score'] > pose_pred[image_id]['score']:
+                        pose_pred[image_id] = pose_top[i]
+                else:
                     pose_pred[image_id] = pose_top[i]
             else:
-                pose_pred[image_id] = pose_top[i]
-
-        # multi-mouse pose_pred
-        # pose_pred = [[0]]*np.array(video_data).shape[0]
-        # # sort annotations
-        # for i in range(len(pose_top)):
-        #     image_id = pose_top[i]['image_id']
-        #     if pose_pred[image_id] == [0]:
-        #         pose_pred[image_id] = [pose_top[i]]
-        #     else:
-        #         pose_pred[image_id].append(pose_top[i])
+                continue
 
         return pose_pred
 
@@ -203,12 +222,16 @@ class MouseDataset(Dataset):
     def load_Formalin_labels(self, total_frames):
         label_dataframe = pd.read_csv(self.label_path)
 
-        label_data = ['no behavior'] * total_frames
+        label_data = ['no behavior'] * int(total_frames/30)
         for index, record in label_dataframe.iterrows():
+
             start_frame = time_to_frame(record[0])
             end_frame = time_to_frame(record[1])
+            
+            if end_frame-start_frame==0:
+                end_frame = start_frame + 30 
             behavior = record[2]
-            for i in range(start_frame, end_frame):
+            for i in range(int(start_frame/30), int(end_frame/30)):
                 label_data[i] = behavior
         return label_data
 
@@ -244,6 +267,6 @@ class MouseDataset(Dataset):
 
         #iterate over audio features
         audio_feat = self.audio_feat[idx]   
-        audio_feat_tensor = torch.tensor(audio_feat)
+        # audio_feat_tensor = torch.tensor(audio_feat)
 
         return images_tensor, behavior_feat_tensor, audio_feat, labels_tensor

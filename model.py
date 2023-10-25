@@ -59,28 +59,40 @@ class VisionModel(nn.Module):
         return output
 
 class AudioModel(nn.Module):
-    def __init__(self, num_audio_features, num_classes):
+    def __init__(self, num_classes):
         super(AudioModel, self).__init__()
 
-        self.audio_fc = nn.Sequential(
-            nn.Linear(num_audio_features, 128),
-            nn.ReLU(),
-            nn.Linear(128, 256),
-            nn.ReLU(),
-            nn.Linear(256, 512),
-            nn.ReLU(),
-            nn.Dropout(0.25)
-        )
+        # self.resnet = models.resnet18(pretrained=True)
+        self.resnet = models.resnet18(pretrained=True)
+        self.resnet.fc = nn.Linear(512,256)
+        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(5, 5), stride=(2, 2), padding=(3, 3), bias=False)
+        self.resnet.maxpool = nn.MaxPool2d(kernel_size=1)
+        self.resnet.avgpool = nn.AdaptiveAvgPool2d(1)
 
-        self.classifier = nn.Linear(256*2, num_classes)
+        self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
+        self.image_fc = nn.Linear(512, 256) 
 
-    def forward_features(self, audio):
-        audio = audio.to(torch.float32)
-        meta = self.audio_fc(audio)
-        meta = meta.mean(dim=1)
-        return meta
+        self.classifier = nn.Linear(256, num_classes)
+        self.sigmoid = nn.Sigmoid()
 
-    def forward(self, audio):
-        meta = self.forward_features(audio)
-        output = self.classifier(meta)
+    def forward(self, image):
+        batch_size, c, h, w = image.shape
+        image = image.view(batch_size*1,c, h, w)
+
+        image = self.resnet(image)
+        batch_size, c, h, w = image.shape
+        image = image.view(batch_size, c*h*w)
+        image = self.image_fc(image)
+        # image = image.mean(dim=1)
+        
+        output = self.classifier(image)
+        output = self.sigmoid(output)
+        # batch_size, s = output.shape
+        # output = output.view(batch_size*s)
         return output
+    
+    def compute_l1_loss(self, w):
+        return torch.abs(w).sum()
+  
+    def compute_l2_loss(self, w):
+        return torch.square(w).sum()
