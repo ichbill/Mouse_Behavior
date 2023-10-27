@@ -21,9 +21,9 @@ def parse_args():
     parser.add_argument('--audio_path', default='/data/zhaozhenghao/Projects/Mouse_behavior/dataset/Formalin/Formalin_Ultrasound_recording.wav', type=str, dest='audio_path', help='Audio path.')
 
     # hyperparameters
-    parser.add_argument('--learning_rate', type=float, default=0.001)
-    parser.add_argument('--num_epochs', type=int, default=50)
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--learning_rate', type=float, default=0.01)
+    parser.add_argument('--num_epochs', type=int, default=25)
+    parser.add_argument('--batch_size', type=int, default=32)
 
     # parameters
     parser.add_argument('--resampling_rate', type=int, default=1500, help='Resampling rate for audio.')
@@ -47,14 +47,14 @@ def main(args):
         writer = SummaryWriter(args.log_dir)
 
     # dataset
-    dataset = MouseDataset(args.video_path, args.pred_path, args.label_path, args.audio_path, args)
+    dataset = MouseDataset(args.video_path, args.pred_path, args.label_path, args.audio_path)
 
     train_size = int(0.7 * len(dataset))
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=True)
 
     # model
     # model = VisionModel(num_meta_features=12, num_classes=3).to(device)
@@ -63,7 +63,7 @@ def main(args):
     # model = DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=True)
     
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, nesterov=True)
     best_valid_loss = float('inf')
     for epoch in range(args.num_epochs):
         model.train()
@@ -76,7 +76,7 @@ def main(args):
             optimizer.zero_grad()
             outputs = model(audio)
             loss = criterion(outputs, labels.float())
-            
+
             # Perform backward pass
             loss.backward()
         
@@ -84,8 +84,8 @@ def main(args):
             optimizer.step()
             total_loss += loss
 
-            # probs = torch.sigmoid(outputs)
-            preds = (outputs > 0.5).float()  # Convert logits to binary predictions
+            probs = torch.sigmoid(outputs)
+            preds = (probs > 0.5).float()  # Convert logits to binary predictions
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
@@ -108,11 +108,10 @@ def main(args):
                 outputs = model(audio)
                 # outputs = outputs.squeeze(dim=1)
                 loss = criterion(outputs, labels.float())
-                
                 total_loss += loss
                 
-                # probs = torch.sigmoid(outputs)
-                preds = (outputs > 0.5).float()  # Convert logits to binary predictions
+                probs = torch.sigmoid(outputs)
+                preds = (probs  > 0.5).float()  # Convert logits to binary predictions
                 all_preds.extend(preds.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
             

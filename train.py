@@ -8,7 +8,7 @@ from model import MouseModel, VisionModel, AudioModel
 from tqdm import tqdm
 import argparse
 from sklearn.metrics import accuracy_score
-
+import torch.multiprocessing as mp
 from torch.utils.tensorboard import SummaryWriter
 
 import torch.distributed as dist
@@ -40,12 +40,14 @@ def parse_args():
 
     # ddp
     parser.add_argument("--local_rank", type=int, default=0)
-
+    parser.add_argument('--epochs', default=2, type=int,metavar = 'N', help='number of total epochs to run')
+    parser.add_argument('-g', '--gpus', default=8, type=int,help='number of gpus per node')
+    parser.add_argument('-nr', '--nr', default=0, type=int,help='ranking within the nodes')
     args = parser.parse_args()
 
     return args
 
-def main(local_rank, args):
+def main(local_rank, world_size, args):
     local_rank = args.local_rank
     
     torch.cuda.set_device(local_rank)
@@ -59,7 +61,7 @@ def main(local_rank, args):
     if args.tensorboard and local_rank == 0:
         writer = SummaryWriter(args.log_dir)
     print("Ok")
-    dist.init_process_group(backend='nccl', world_size=8, rank=local_rank)
+    dist.init_process_group(backend='nccl', world_size=world_size, rank=local_rank)
     print("Ok2")
     torch.manual_seed(1234)
     # dataset
@@ -162,6 +164,13 @@ if __name__ == "__main__":
     args = parse_args()
     world_size = 8
     os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29500'
+    os.environ['MASTER_PORT'] = '0'
+
+    mp.spawn(main, args=(world_size, args), nprocs = world_size,join=True)
+
+    # args = parse_args()
+    # world_size = 8
+    # os.environ['MASTER_ADDR'] = '127.0.0.1'
+    # os.environ['MASTER_PORT'] = '29500'
     
-    torch.multiprocessing.spawn(main, args=(args,), nprocs=world_size)
+    # torch.multiprocessing.spawn(main, args=(args,), nprocs=world_size)

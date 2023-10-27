@@ -65,7 +65,7 @@ class AudioModel(nn.Module):
         # self.resnet = models.resnet18(pretrained=True)
         self.resnet = models.resnet18(pretrained=True)
         self.resnet.fc = nn.Linear(512,256)
-        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(5, 5), stride=(2, 2), padding=(3, 3), bias=False)
+        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(2, 2), padding=(3, 3), bias=False)
         self.resnet.maxpool = nn.MaxPool2d(kernel_size=1)
         self.resnet.avgpool = nn.AdaptiveAvgPool2d(1)
 
@@ -73,7 +73,7 @@ class AudioModel(nn.Module):
         self.image_fc = nn.Linear(512, 256) 
 
         self.classifier = nn.Linear(256, num_classes)
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, image):
         batch_size, c, h, w = image.shape
@@ -86,7 +86,7 @@ class AudioModel(nn.Module):
         # image = image.mean(dim=1)
         
         output = self.classifier(image)
-        output = self.sigmoid(output)
+        # output = self.sigmoid(output)
         # batch_size, s = output.shape
         # output = output.view(batch_size*s)
         return output

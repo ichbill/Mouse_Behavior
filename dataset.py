@@ -9,6 +9,30 @@ import torchaudio.transforms as T
 import json
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+import random
+from collections import Counter
+
+def balance_labels(label_data, target_percentage=0.5, label_to_modify=' licking', label_to_convert_to='no behavior'):
+    # Count the occurrences of each label
+    label_counts = {label: label_data.count(label) for label in set(label_data)}
+
+    # Calculate the target count for the label to convert
+    target_count = int(target_percentage * label_counts[label_to_modify])
+
+    # Create a list to store the modified labels
+    modified_labels = []
+
+    for label in label_data:
+        if label == label_to_modify and target_count > 0:
+            # Convert label_to_modify to label_to_convert_to
+            modified_labels.append(label_to_convert_to)
+            target_count -= 1
+        else:
+            # Keep other labels as they are
+            modified_labels.append(label)
+
+    return modified_labels
 
 def mel_spectrogram(x, sampling_rate):
     
@@ -16,8 +40,8 @@ def mel_spectrogram(x, sampling_rate):
 
     n_fft = 10240 #int(0.25*sampling_rate)
     win_length = None
-    hop_length = 2048
-    n_mels = 64
+    hop_length = 1024
+    n_mels = 128
     mel_spectrogram = T.MelSpectrogram(
         sample_rate=sampling_rate,
         n_fft=n_fft,
@@ -26,9 +50,8 @@ def mel_spectrogram(x, sampling_rate):
         mel_scale="htk",
         n_mels=n_mels
         )
-
     waveform_mfcc = mel_spectrogram(x)
-    return 10*np.log10(waveform_mfcc+1e-6)
+    return waveform_mfcc
 
 def one_hot_encode(labels):
     one_hot_labels = [0,0]
@@ -36,7 +59,7 @@ def one_hot_encode(labels):
     #     one_hot_labels[0] = 1
     if ' flinching' in labels:
         one_hot_labels[0] = 1
-    elif ' licking' in labels:
+    if ' licking' in labels:
         one_hot_labels[1] = 1
     return one_hot_labels
 
@@ -82,9 +105,9 @@ def time_to_frame(time):
     total_seconds = minutes * 60 + seconds
     return total_seconds * 30
 
-def sliding_window(pose_keypoints, audio, label_data, args):
-    step = 30
-    stride = 30
+def sliding_window(pose_keypoints, audio, label_data, sampling_rate, args):
+    step = 10
+    stride = 10
     # sliding window for pose
     if args.local_rank == 0:
         print('pose_keypoints shape:', pose_keypoints.shape)
@@ -94,24 +117,37 @@ def sliding_window(pose_keypoints, audio, label_data, args):
         print('pose_keypoints sliding window shape:', behavior_feat.shape)
 
     # sliding window for audio
+    audio = audio[0]
+    audio = audio[:(3607*sampling_rate)]
     if args.local_rank == 0:
         print('audio_feat shape:', audio.shape)
-    audio_feat = audio
+    audio_step = int(step*(sampling_rate/30))
+    audio_stride = int(stride*((sampling_rate/30)))
+    audio_feat = np.array([audio[i:i+audio_step] for i in range(0,len(audio),audio_stride)])
     if args.local_rank == 0:
         print('audio_feat sliding window shape:', audio_feat.shape)
-
+    audio_tensor = []
     # sliding window for labels
     if args.local_rank == 0:
         print('label_data shape:', len(label_data))
-    one_hot_labels = np.array([one_hot_encode(x) for x in label_data])
+    label_window = np.array([label_data[bias:][i:i+step] for i in range(0,len(label_data[bias:]),stride)])
+    one_hot_labels = np.array([one_hot_encode(list(set(x))) for x in label_window])
     if args.local_rank == 0:
         print('label_data sliding window shape:', one_hot_labels.shape)
-    # one_hot_labels = np.array([one_hot_encode(x) for x in labels])
 
     valid_indices = ~(np.all(one_hot_labels == [0,0], axis=1))
-    # valid_indices = np.ones((len(one_hot_labels),), dtype=bool)
+    #valid_indices = np.ones((len(one_hot_labels),), dtype=bool)
     behavior_feat = behavior_feat[valid_indices]
     audio_feat = audio_feat[valid_indices]
+    audio_tensor = []
+    for i in tqdm(range(audio_feat.shape[0])):
+        spec = mel_spectrogram(torch.tensor(audio_feat[i]).float(), sampling_rate)
+        spec = spec.unsqueeze(0)
+        spec = spec.numpy()
+        audio_tensor.append(spec)
+    
+    audio_tensor = np.asarray(audio_tensor)
+    audio_feat = audio_tensor
     one_hot_labels = one_hot_labels[valid_indices]
     return behavior_feat, audio_feat, one_hot_labels, valid_indices
 
@@ -127,8 +163,8 @@ class MouseDataset(Dataset):
         self.audio_path = audio_path
 
         self.sliding_window = True
-        self.step = 30
-        self.stride = 30
+        self.step = 10
+        self.stride = 10
         self.bias = len(self.image_files) % self.step
         # self.resampling_rate = args.resampling_rate
         self.transform = transforms.Compose([
@@ -138,29 +174,10 @@ class MouseDataset(Dataset):
 
         # load audio
         self.waveform, self.sample_rate = torchaudio.load(self.audio_path)
-        
-        #No need for resampling
-        # if args.local_rank == 0:
-        #     print('Original audio shape: ', self.waveform.shape)
-        # resampled_audio = F.resample(self.waveform, self.sample_rate, self.resampling_rate, rolloff=0.99)
-        # if args.local_rank == 0:
-            # print('Resampled audio shape: ', resampled_audio.shape)
+        print(self.sample_rate)
 
-        audio_tensor = []
-        for i in range (0, len(self.waveform[0]), self.sample_rate):
-            arr = np.array(self.waveform[0, i:i+self.sample_rate])
-            if(len(arr)==self.sample_rate):
-                spec = mel_spectrogram(torch.tensor(arr).float(), self.sample_rate)
-                # print(spec.shape)
-                spec = spec.unsqueeze(0)
-                spec = spec.numpy()
-                audio_tensor.append(spec)
-            else:
-                pass
-        audio_array = np.asarray(audio_tensor)
-        audio_array = audio_array[:int((len(self.image_files))/30),:,:,:]
-        if args.local_rank == 0:
-            print('Audio shape divided into frames: ', audio_array.shape)
+        audio_array = np.asarray(self.waveform)
+        audio_array = audio_array[:,(3*self.sample_rate):]
 
         # load pose prediction
         pose_pred = self.load_predictions(len(self.image_files))
@@ -172,7 +189,7 @@ class MouseDataset(Dataset):
 
         # sliding window
         if self.sliding_window:
-            self.behavior_feat, self.audio_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, audio_array, label_data, args)
+            self.behavior_feat, self.audio_feat, self.labels, self.valid_indices = sliding_window(pose_keypoints, audio_array, label_data, self.sample_rate)
             
         self.all_indices = np.arange((len(self.image_files) - self.bias - self.step) // self.stride + 1)
 
@@ -222,7 +239,7 @@ class MouseDataset(Dataset):
     def load_Formalin_labels(self, total_frames):
         label_dataframe = pd.read_csv(self.label_path)
 
-        label_data = ['no behavior'] * int(total_frames/30)
+        label_data = ['no behavior'] * int(total_frames)
         for index, record in label_dataframe.iterrows():
 
             start_frame = time_to_frame(record[0])
@@ -231,7 +248,7 @@ class MouseDataset(Dataset):
             if end_frame-start_frame==0:
                 end_frame = start_frame + 30 
             behavior = record[2]
-            for i in range(int(start_frame/30), int(end_frame/30)):
+            for i in range(int(start_frame), int(end_frame)):
                 label_data[i] = behavior
         return label_data
 
