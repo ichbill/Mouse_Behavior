@@ -77,10 +77,49 @@ class AudioModel(nn.Module):
     def forward_features(self, audio):
         audio = audio.to(torch.float32)
         meta = self.audio_fc(audio)
-        meta = meta.mean(dim=1)
+        metda = meta.mean(dim=1)
         return meta
 
     def forward(self, audio):
         meta = self.forward_features(audio)
         output = self.classifier(meta)
         return output
+
+class BehaviorModel(nn.Module):
+    def __init__(self,num_features,num_classes):
+        super(BehaviorModel,self).__init__()
+        self.input_size = num_features
+        self.hidden_size= 4        #hidden_size
+        self.layer_size = 2         #layer_size
+        self.output_size = num_classes
+
+        # self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearility = 'relu')
+        self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearity='relu')
+
+        self.fc = nn.Sequential(nn.Linear(self.hidden_size*10, 8), 
+                                nn.ReLU(), 
+                                nn.Linear(8, self.output_size), 
+                                nn.ReLU(), 
+                                nn.Dropout(0.25))
+
+    def forward(self,behavior_feat):
+        # Convert input data to torch.float32
+        behavior_feat = behavior_feat.to(torch.float32)
+
+        # Instantitate hidden_state at timestamp 0 
+        # hidden_state = torch.zeros(self.layer_size, behavior_feat[0], self.hidden_size)
+        hidden_state = torch.zeros(self.layer_size, behavior_feat.size(0), self.hidden_size)
+
+        hidden_state = hidden_state.requires_grad_()
+
+        output, _ = self.rnn(behavior_feat,hidden_state.detach())
+
+        output = output.reshape(output.shape[0],-1)
+        # print(output.shape)
+        output = self.fc(output)
+        return output
+
+
+
+        
+        
