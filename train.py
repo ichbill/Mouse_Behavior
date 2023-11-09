@@ -105,9 +105,22 @@ def main(args):
     # Now, use the samplers in your DataLoader
     train_loader = DataLoader(train_dataset, batch_size=32, sampler=train_sampler)
     test_loader = DataLoader(test_dataset, batch_size=32, sampler=test_sampler)
+    # for steps, (behavior_feat, labels) in enumerate(tqdm(train_loader)):
+    #     rnn_1_neuron =RNNVanilla(behavior_feat[0][0],1)
+
+
     # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, sampler=train_sampler, num_workers=0)
     # test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, sampler=test_sampler, num_workers=0)
-
+    # for steps, (behavior_feat, labels) in enumerate(tqdm(train_loader)):
+    #     print("behavior_feat : ", behavior_feat)
+    #     print("behavior_feat_size :",behavior_feat.shape)
+    #     print("behavior_feat[0] : ", behavior_feat[0])
+    #     print("behavior_feat[0].size :",behavior_feat[0].shape)
+    #     print("labels : ",labels)
+    #     print("labels_size :",labels.shape)
+    #     break
+    
+    #'''
     # model
     # model = VisionModel(num_meta_features=12, num_classes=3).to(device)
     # model = AudioModel(num_audio_features=50, num_classes=3).to(device)
@@ -115,10 +128,12 @@ def main(args):
     model = BehaviorModel(num_features=12, num_classes=2).to(device) #
     # model = DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=True)
     
+
     criterion = nn.BCEWithLogitsLoss()
+    #criterion = nn.BCELoss()
     ## criterion = nn.MSELoss()
     # optimizer = Adam(model.parameters(), lr=args.learning_rate)
-    optimizer = torch.optim.Adagrad(model.parameters(), lr=0.001, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
+    optimizer = torch.optim.Adagrad(model.parameters(), lr=0.01, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
     best_valid_loss = float('inf')
     for epoch in range(args.num_epochs):
         model.train()
@@ -193,7 +208,7 @@ def main(args):
     print("Training finished!")
     if args.tensorboard:
         writer.close()
-
+    #'''
 if __name__ == "__main__":
     args = parse_args()
     main(args)
