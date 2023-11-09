@@ -16,6 +16,7 @@ from sklearn.metrics import accuracy_score
 # from torch.nn.parallel import DistributedDataParallel
 # from torch.utils.data.distributed import DistributedSampler
 import numpy as np
+import matplotlib.pyplot as plt
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -29,7 +30,7 @@ def parse_args():
     # hyperparameters
     parser.add_argument('--learning_rate', type=float, default=0.0001)
     parser.add_argument('--num_epochs', type=int, default=50)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=64)
 
     # parameters
     parser.add_argument('--resampling_rate', type=int, default=1500, help='Resampling rate for audio.')
@@ -103,8 +104,8 @@ def main(args):
     test_sampler = WeightedRandomSampler(test_weights, len(test_weights))
 
     # Now, use the samplers in your DataLoader
-    train_loader = DataLoader(train_dataset, batch_size=32, sampler=train_sampler)
-    test_loader = DataLoader(test_dataset, batch_size=32, sampler=test_sampler)
+    train_loader = DataLoader(train_dataset, batch_size=64, sampler=train_sampler)
+    test_loader = DataLoader(test_dataset, batch_size=64, sampler=test_sampler)
     # for steps, (behavior_feat, labels) in enumerate(tqdm(train_loader)):
     #     rnn_1_neuron =RNNVanilla(behavior_feat[0][0],1)
 
@@ -133,8 +134,11 @@ def main(args):
     #criterion = nn.BCELoss()
     ## criterion = nn.MSELoss()
     # optimizer = Adam(model.parameters(), lr=args.learning_rate)
-    optimizer = torch.optim.Adagrad(model.parameters(), lr=0.01, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
+    #optimizer = torch.optim.Adagrad(model.parameters(), lr=0.001, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0)
     best_valid_loss = float('inf')
+    test_loss_list = []
+    test_accuracy_list=[]
     for epoch in range(args.num_epochs):
         model.train()
         all_preds = []
@@ -189,6 +193,8 @@ def main(args):
             
             test_loss = total_loss / len(test_loader)
             val_accuracy = accuracy_score(all_labels, all_preds)
+            test_loss_list.append(test_loss)
+            test_accuracy_list.append(val_accuracy)
             if test_loss < best_valid_loss:
                 best_valid_loss = test_loss
                 checkpoint_path = 'best_model_checkpoint.pt'
@@ -206,8 +212,20 @@ def main(args):
             print(f"Epoch [{epoch+1}/{args.num_epochs}], Testing Loss: {test_loss:.4f}, Test Accuracy: {val_accuracy:.2f}")
 
     print("Training finished!")
+    n=[i for i in range(50)]
     if args.tensorboard:
         writer.close()
+    plt.subplot(2,1,1)
+    plt.plot(n,test_loss_list)
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.subplot(2,1,2)
+    plt.plot(n,test_accuracy_list)
+    plt.xlabel('epoch')
+    plt.ylabel('accuracy')
+    plt.ylim(0,1)
+    plt.show()
+
     #'''
 if __name__ == "__main__":
     args = parse_args()

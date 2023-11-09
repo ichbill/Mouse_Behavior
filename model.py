@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+from sklearn.preprocessing import MinMaxScaler
+
 
 class MouseModel(nn.Module):
     def __init__(self, num_meta_features, num_audio_features, num_classes):
@@ -89,7 +91,7 @@ class BehaviorModel(nn.Module):
     def __init__(self,num_features,num_classes):
         super(BehaviorModel,self).__init__()
         self.input_size = num_features
-        self.hidden_size= 40        #hidden_size
+        self.hidden_size= 10        #hidden_size #40
         self.layer_size = 2         #layer_size
         self.output_size = num_classes
 
@@ -97,30 +99,35 @@ class BehaviorModel(nn.Module):
         self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearity='relu')
         self.layer_norm = nn.LayerNorm(self.hidden_size)
         #self.fc = nn.Sequential(nn.Linear(self.hidden_size*10,self.output_size)) # 10 is window size
-        self.fc = nn.Sequential(nn.Linear(self.hidden_size*10, 120), 
+        self.fc = nn.Sequential(nn.Linear(self.hidden_size*10, 64), 
                                 # nn.ReLU(),
                                 # nn.Linear(128,256),
                                 # nn.BatchNorm1d(256),
                                 # nn.ReLU(),
                                 # nn.Linear(256,128),
                                 # nn.BatchNorm1d(128),
+                                # #nn.Dropout(0.1),
                                 # nn.ReLU(),
                                 # nn.Linear(128,64),
-                                # nn.BatchNorm1d(64),
-                                # nn.ReLU(),
-                                # nn.Linear(64,32),
-                                # nn.BatchNorm1d(32),
-                                # nn.ReLU(),
-                                nn.Linear(120,16),
-                                nn.BatchNorm1d(16),
+                                nn.BatchNorm1d(64),
+                                # nn.Dropout(0.25),
                                 nn.ReLU(),
-                                nn.Linear(16, self.output_size),
-                                nn.Dropout(0.0))   
+                                nn.Dropout(0.25),
+                                nn.Linear(64,32),
+                                nn.BatchNorm1d(32),
+                                # nn.Dropout(0.25),
+                                nn.ReLU(),
+                                nn.Dropout(0.25),
+                                nn.Linear(32,16),
+                                nn.BatchNorm1d(16),
+                                # nn.Dropout(0.25),
+                                nn.ReLU(),
+                                nn.Dropout(0.25),
+                                nn.Linear(16, self.output_size))   
 
     def forward(self,behavior_feat):
         # Convert input data to torch.float32
         behavior_feat = behavior_feat.to(torch.float32)
-        #behavior_feat = nn.BatchNorm1d()
         # Instantitate hidden_state at timestamp 0 
         # hidden_state = torch.zeros(self.layer_size, behavior_feat[0], self.hidden_size)
         # behavior_feat.size(0) : batch_size 
@@ -130,6 +137,8 @@ class BehaviorModel(nn.Module):
 
         hidden_state = hidden_state.requires_grad_()
 
+        #m = nn.BatchNorm1d(10)
+        #behavior_feat = m(behavior_feat)
         output, _ = self.rnn(behavior_feat,hidden_state.detach())
         output = self.layer_norm(output)
         output = output.reshape(output.shape[0],-1)
