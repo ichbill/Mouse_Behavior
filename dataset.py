@@ -66,13 +66,13 @@ def time_to_frame(time):
     return total_seconds * 30
 
 def sliding_window(pose_keypoints, label_data):
-    step = 10
-    stride = 10
+    step = 5
+    stride = 5
     # sliding window for pose
     # if args.local_rank == 0:
     print('pose_keypoints shape:', pose_keypoints.shape)
     bias = len(pose_keypoints)%step
-    behavior_feat = np.array([pose_keypoints[bias:][i:i+step] for i in range(0,len(pose_keypoints[bias:]),stride)])
+    behavior_feat = np.array([pose_keypoints[bias:][i:i+step] for i in range(0,len(pose_keypoints[bias:]),stride)]) #sliding
     # if args.local_rank == 0:
     print('pose_keypoints sliding window shape:', behavior_feat.shape)
 
@@ -85,8 +85,10 @@ def sliding_window(pose_keypoints, label_data):
 
     # sliding window for labels
     # if args.local_rank == 0:
+    #label_data : ex) ' flinching',' flinching',' flinching',' flinching',...,' licking',' licking',' licking',...... #total:108211
     print('label_data shape:', len(label_data))
     label_window = np.array([label_data[bias:][i:i+step] for i in range(0,len(label_data[bias:]),stride)])
+    #print('label_window shape:',label_window.shape)
     one_hot_labels = np.array([one_hot_encode(list(set(x))) for x in label_window])
     # if args.local_rank == 0:
     print('label_data sliding window shape:', one_hot_labels.shape)
@@ -114,8 +116,8 @@ class MouseDataset(Dataset):
         # self.audio_path = audio_path
 
         self.sliding_window = True
-        self.step = 10
-        self.stride = 10
+        self.step = 5
+        self.stride = 5
         self.bias = 1
         # len(self.image_files) % self.step
         # self.resampling_rate = args.resampling_rate

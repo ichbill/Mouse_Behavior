@@ -18,6 +18,8 @@ from sklearn.metrics import accuracy_score
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -29,7 +31,7 @@ def parse_args():
 
     # hyperparameters
     parser.add_argument('--learning_rate', type=float, default=0.0001)
-    parser.add_argument('--num_epochs', type=int, default=50)
+    parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=64)
 
     # parameters
@@ -135,15 +137,26 @@ def main(args):
     ## criterion = nn.MSELoss()
     # optimizer = Adam(model.parameters(), lr=args.learning_rate)
     #optimizer = torch.optim.Adagrad(model.parameters(), lr=0.001, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0)
+    learning_rate=0.0005
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
     best_valid_loss = float('inf')
+    train_loss_list=[]
+    train_accuracy_list=[]
     test_loss_list = []
     test_accuracy_list=[]
+    early_stopping_epochs=500
+    best_loss=float('inf')
+    early_stop_counter=0
+
+
     for epoch in range(args.num_epochs):
         model.train()
         all_preds = []
         all_labels = []
         total_loss = 0
+
+
+
         for steps, (behavior_feat, labels) in enumerate(tqdm(train_loader)):
             behavior_feat, labels =  behavior_feat.to(device), labels.to(device)
 
@@ -166,6 +179,9 @@ def main(args):
 
         train_accuracy = accuracy_score(all_labels, all_preds) 
         train_loss = total_loss / len(train_loader)
+
+        train_accuracy_list.append(train_accuracy)
+        train_loss_list.append(train_loss)
         if args.tensorboard and local_rank == 0:
             writer.add_scalar('Train/Accuracy', train_accuracy, epoch)
             writer.add_scalar('Train/Loss', train_loss, epoch)
@@ -175,6 +191,7 @@ def main(args):
         total_loss = 0
         all_preds = []
         all_labels = []
+
         with torch.no_grad():
             for behavior_feat, labels in test_loader:
                 behavior_feat, labels = behavior_feat.to(device), labels.to(device)
@@ -204,7 +221,16 @@ def main(args):
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': test_loss,
                     }, checkpoint_path)
-                            
+            if test_loss > best_loss:
+                early_stop_counter+=1
+            else:
+                best_loss = test_loss
+                early_stop_counter=0
+            
+            if early_stop_counter >= early_stopping_epochs:
+                print("Early Stopping")
+                break
+
             
             if args.tensorboard and local_rank == 0:
                 writer.add_scalar('Test/Accuracy', val_accuracy, epoch)
@@ -212,18 +238,25 @@ def main(args):
             print(f"Epoch [{epoch+1}/{args.num_epochs}], Testing Loss: {test_loss:.4f}, Test Accuracy: {val_accuracy:.2f}")
 
     print("Training finished!")
-    n=[i for i in range(50)]
+    n_train = [i for i in range(len(train_loss_list))] 
+    n_test = [i for i in range(len(test_loss_list))]
     if args.tensorboard:
         writer.close()
     plt.subplot(2,1,1)
-    plt.plot(n,test_loss_list)
+    plt.title(f"lr={learning_rate}")
+    plt.plot(n_test,test_loss_list,'r',label='test loss')
+    plt.plot(n_train,train_loss_list,'b',label='train loss')
     plt.xlabel('epoch')
-    plt.ylabel('loss')
+    plt.ylabel('Loss')
+    plt.legend()
+
     plt.subplot(2,1,2)
-    plt.plot(n,test_accuracy_list)
+    plt.plot(n_test,test_accuracy_list,'r',label='test accuracy')
+    plt.plot(n_train,train_accuracy_list,'b',label='train accuracy')
     plt.xlabel('epoch')
     plt.ylabel('accuracy')
     plt.ylim(0,1)
+    plt.legend()
     plt.show()
 
     #'''
