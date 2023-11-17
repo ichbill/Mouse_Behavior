@@ -31,7 +31,7 @@ def parse_args():
 
     # hyperparameters
     parser.add_argument('--learning_rate', type=float, default=0.0001)
-    parser.add_argument('--num_epochs', type=int, default=500)
+    parser.add_argument('--num_epochs', type=int, default=50)
     parser.add_argument('--batch_size', type=int, default=64)
 
     # parameters
@@ -56,7 +56,7 @@ def uniform_dist(dataset):
     labels_str = [f"{label_tensor[0].item()}{label_tensor[1].item()}" 
                   for label_tensor in labels]
     # Placeholder for X since we only need to stratify based on the labels
-    X_dummy = np.zeros(len(labels))
+    X_dummy = np.zeros(len(labels)) 
 
     # Use 'labels_str' for stratification
     for train_index, test_index in sss.split(X_dummy, labels_str):
@@ -75,7 +75,13 @@ def get_flat_labels(dataset):
 def calculate_weights(dataset):
     flat_labels = get_flat_labels(dataset)
     class_sample_count = torch.tensor([(torch.tensor(flat_labels) == t).sum() for t in torch.unique(torch.tensor(flat_labels), sorted=True)])
-    weight = 1. / class_sample_count.float()
+    # ex)
+    # 0 : 96% = 9000
+    # 1 : 2% = 500 
+    # 2 : 1% = 250
+    # 3 : 1% = 250 
+    
+    weight = 1. / class_sample_count.float() 
     sample_weights = torch.tensor([weight[t] for t in flat_labels])
     print(sample_weights)
     return sample_weights
@@ -136,9 +142,9 @@ def main(args):
     #criterion = nn.BCELoss()
     ## criterion = nn.MSELoss()
     # optimizer = Adam(model.parameters(), lr=args.learning_rate)
-    #optimizer = torch.optim.Adagrad(model.parameters(), lr=0.001, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
-    learning_rate=0.0005
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
+    learning_rate=0.005
+    optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
     best_valid_loss = float('inf')
     train_loss_list=[]
     train_accuracy_list=[]

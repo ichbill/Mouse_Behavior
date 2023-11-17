@@ -91,8 +91,8 @@ class BehaviorModel(nn.Module):
     def __init__(self,num_features,num_classes):
         super(BehaviorModel,self).__init__()
         self.input_size = num_features
-        self.hidden_size= 10        #hidden_size #40
-        self.layer_size = 2         #layer_size
+        self.hidden_size= 16        #hidden_size #40
+        self.layer_size = 1         #layer_size
         self.output_size = num_classes
 
         # self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearility = 'relu')
@@ -109,18 +109,18 @@ class BehaviorModel(nn.Module):
                                 # #nn.Dropout(0.1),
                                 # nn.ReLU(),
                                 # nn.Linear(128,64),
-                                nn.BatchNorm1d(64),
-                                nn.Dropout(0.1),
-                                nn.ReLU(),
+                                # nn.BatchNorm1d(64),
+                                # # nn.Dropout(0.1),
+                                # nn.ReLU(),
                                 nn.Linear(64,32),
                                 nn.BatchNorm1d(32),
-                                nn.Dropout(0.1),
+                                # nn.Dropout(0.1),
                                 nn.ReLU(),
                                 nn.Linear(32,16),
                                 nn.BatchNorm1d(16),
                                 # nn.Dropout(0.25),
                                 nn.ReLU(),
-                                nn.Dropout(0.1),
+                                # nn.Dropout(0.1),
                                 nn.Linear(16, self.output_size))   
 
     def forward(self,behavior_feat):
