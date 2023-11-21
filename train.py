@@ -56,7 +56,7 @@ def uniform_dist(dataset):
     labels_str = [f"{label_tensor[0].item()}{label_tensor[1].item()}" 
                   for label_tensor in labels]
     # Placeholder for X since we only need to stratify based on the labels
-    X_dummy = np.zeros(len(labels)) 
+    X_dummy = np.zeros(len(labels))
 
     # Use 'labels_str' for stratification
     for train_index, test_index in sss.split(X_dummy, labels_str):
