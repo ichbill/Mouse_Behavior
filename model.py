@@ -101,9 +101,9 @@ class BehaviorModel(nn.Module):
         self.layer_norm = nn.LayerNorm(self.hidden_size)
         #self.fc = nn.Sequential(nn.Linear(self.hidden_size*10,self.output_size)) # 10 is window size
         self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
-        self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, 64),
-                                nn.BatchNorm
-                                nn.ReLU())
+        # self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, 64),
+        #                         nn.BatchNorm
+        #                         nn.ReLU())
         # self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, 64), 
         #                         # nn.ReLU(),
         #                         # nn.Linear(128,256),
