@@ -96,17 +96,22 @@ class BehaviorModel(nn.Module):
         self.output_size = num_classes
 
         # self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearility = 'relu')
-        self.rnn = nn.LSTM(self.input_size, self.hidden_size, num_layers= self.layer_size, batch_first=True)
+        self.rnn = nn.GRU(self.input_size, self.hidden_size, num_layers= self.layer_size, batch_first=True)
         #self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearity='relu')
         self.layer_norm = nn.LayerNorm(self.hidden_size)
         #self.fc = nn.Sequential(nn.Linear(self.hidden_size*10,self.output_size)) # 10 is window size
-        self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
-        # self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, 64),
-        #                         nn.BatchNorm
-        #                         nn.ReLU())
+        # self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
+        self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, self.output_size),
+                                nn.BatchNorm1d(2))
+                                # nn.ReLU())
+                                # nn.Linear(32,self.output_size),
+                                # nn.BatchNorm1d(2),
+                                # nn.ReLU())
+        
         # self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, 64), 
         #                         # nn.ReLU(),
         #                         # nn.Linear(128,256),
+        
         #                         # nn.BatchNorm1d(256),
         #                         # nn.ReLU(),
         #                         # nn.Linear(256,128),
@@ -142,8 +147,8 @@ class BehaviorModel(nn.Module):
 
         m = nn.BatchNorm1d(5)
         behavior_feat = m(behavior_feat)
-        #output, _ = self.rnn(behavior_feat,hidden_state.detach())
-        output, _ = self.rnn(behavior_feat,(hidden_state.detach(),cell_state.detach()))
+        output, _ = self.rnn(behavior_feat,hidden_state.detach())
+        # output, _ = self.rnn(behavior_feat,(hidden_state.detach(),cell_state.detach()))
         output = self.layer_norm(output)
         output = output.reshape(output.shape[0],-1)
         # print(output.shape)

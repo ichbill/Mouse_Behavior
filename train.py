@@ -17,6 +17,7 @@ from sklearn.metrics import accuracy_score
 # from torch.utils.data.distributed import DistributedSampler
 import numpy as np
 import matplotlib.pyplot as plt
+from torcheval.metrics.functional import multiclass_f1_score
 
 
 
@@ -31,7 +32,7 @@ def parse_args():
 
     # hyperparameters
     parser.add_argument('--learning_rate', type=float, default=0.0001)
-    parser.add_argument('--num_epochs', type=int, default=50)
+    parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=64)
 
     # parameters
@@ -115,8 +116,7 @@ def main(args):
     train_loader = DataLoader(train_dataset, batch_size=64, sampler=train_sampler)
     test_loader = DataLoader(test_dataset, batch_size=64, sampler=test_sampler)
     # for steps, (behavior_feat, labels) in enumerate(tqdm(train_loader)):
-    #     rnn_1_neuron =RNNVanilla(behavior_feat[0][0],1)
-
+    #     rnn_1_neuron =RNNVanilla(behavior_feat[0][0],1)S
 
     # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, sampler=train_sampler, num_workers=0)
     # test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, sampler=test_sampler, num_workers=0)
@@ -142,7 +142,7 @@ def main(args):
     #criterion = nn.BCELoss()
     ## criterion = nn.MSELoss()
     # optimizer = Adam(model.parameters(), lr=args.learning_rate)
-    learning_rate=0.005
+    learning_rate=0.001
     optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
     best_valid_loss = float('inf')
@@ -150,9 +150,11 @@ def main(args):
     train_accuracy_list=[]
     test_loss_list = []
     test_accuracy_list=[]
-    early_stopping_epochs=500
+    early_stopping_epochs=20
     best_loss=float('inf')
     early_stop_counter=0
+
+    F1_score_list= []
 
 
     for epoch in range(args.num_epochs):
@@ -185,7 +187,7 @@ def main(args):
 
         train_accuracy = accuracy_score(all_labels, all_preds) 
         train_loss = total_loss / len(train_loader)
-
+        
         train_accuracy_list.append(train_accuracy)
         train_loss_list.append(train_loss)
         if args.tensorboard and local_rank == 0:
@@ -218,6 +220,9 @@ def main(args):
             val_accuracy = accuracy_score(all_labels, all_preds)
             test_loss_list.append(test_loss)
             test_accuracy_list.append(val_accuracy)
+            # F1_score = multiclass_f1_score(behavior_feat,labels,num_classes=2)
+            # F1_score_list.append(F1_score)
+
             if test_loss < best_valid_loss:
                 best_valid_loss = test_loss
                 checkpoint_path = 'best_model_checkpoint.pt'
@@ -248,7 +253,7 @@ def main(args):
     n_test = [i for i in range(len(test_loss_list))]
     if args.tensorboard:
         writer.close()
-    plt.subplot(2,1,1)
+    plt.subplot(3,1,1)
     plt.title(f"lr={learning_rate}")
     plt.plot(n_test,test_loss_list,'r',label='test loss')
     plt.plot(n_train,train_loss_list,'b',label='train loss')
@@ -256,7 +261,7 @@ def main(args):
     plt.ylabel('Loss')
     plt.legend()
 
-    plt.subplot(2,1,2)
+    plt.subplot(3,1,2)
     plt.plot(n_test,test_accuracy_list,'r',label='test accuracy')
     plt.plot(n_train,train_accuracy_list,'b',label='train accuracy')
     plt.xlabel('epoch')
@@ -265,6 +270,12 @@ def main(args):
     plt.legend()
     plt.show()
 
+    # plt.subplot(3,1,3)
+    # plt.plot(n_test,F1_score_list,'r',label='test F1 score')
+    # plt.xlabel('epoch')
+    # plt.ylabel('F1 score')
+    # plt.legend()
+    # plt.show()
     #'''
 if __name__ == "__main__":
     args = parse_args()
