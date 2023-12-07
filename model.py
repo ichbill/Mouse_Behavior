@@ -160,8 +160,8 @@ class BehaviorModel(nn.Module):
   def __init__(self, num_features, num_classes):
     super(BehaviorModel, self).__init__()
     self.input_size = num_features
-    self.hidden_size = 128  # hidden_size
-    self.layer_size = 3  # layer_size
+    self.hidden_size = 16  # hidden_size
+    self.layer_size = 1  # layer_size
     self.output_size = num_classes
 
     self.fc1 = nn.Linear(self.input_size, 64)
