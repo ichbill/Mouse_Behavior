@@ -32,7 +32,7 @@ def parse_args():
 
     # hyperparameters
     parser.add_argument('--learning_rate', type=float, default=0.0001)
-    parser.add_argument('--num_epochs', type=int, default=500)
+    parser.add_argument('--num_epochs', type=int, default=50)
     parser.add_argument('--batch_size', type=int, default=64)
 
     # parameters
@@ -88,6 +88,9 @@ def calculate_weights(dataset):
     return sample_weights
 
 def main(args):
+
+    batch = 64 
+
     # local_rank = args.local_rank
     # dist.init_process_group(backend="nccl", init_method="env://")
     local_rank = 0
@@ -103,7 +106,8 @@ def main(args):
 
     #Maintaining the distribution in train and test set
     train_dataset, test_dataset = uniform_dist(dataset)
-    
+
+
     #
     train_weights = calculate_weights(train_dataset)
     train_sampler = WeightedRandomSampler(train_weights, len(train_weights))
@@ -113,8 +117,12 @@ def main(args):
     test_sampler = WeightedRandomSampler(test_weights, len(test_weights))
 
     # Now, use the samplers in your DataLoader
-    train_loader = DataLoader(train_dataset, batch_size=64, sampler=train_sampler)
-    test_loader = DataLoader(test_dataset, batch_size=64, sampler=test_sampler)
+    train_loader = DataLoader(train_dataset, batch_size=batch, sampler=train_sampler)
+    test_loader = DataLoader(test_dataset, batch_size=batch, sampler=test_sampler)
+    
+
+
+
     # for steps, (behavior_feat, labels) in enumerate(tqdm(train_loader)):
     #     rnn_1_neuron =RNNVanilla(behavior_feat[0][0],1)S
 
@@ -142,7 +150,7 @@ def main(args):
     #criterion = nn.BCELoss()
     ## criterion = nn.MSELoss()
     # optimizer = Adam(model.parameters(), lr=args.learning_rate)
-    learning_rate=0.001
+    learning_rate=0.005
     optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
     best_valid_loss = float('inf')
@@ -167,7 +175,15 @@ def main(args):
 
         for steps, (behavior_feat, labels) in enumerate(tqdm(train_loader)):
             behavior_feat, labels =  behavior_feat.to(device), labels.to(device)
-
+            # if steps==1:
+            #     print(f"behavior_feat shape : {behavior_feat.shape}")
+            try:
+                behavior_feat = behavior_feat.reshape(batch,-1)
+            except:
+                behavior_feat = behavior_feat.reshape(-1,12)
+            # if steps==1:
+            #     print(f"behavior_feat shape : {behavior_feat.shape}")
+            # print(f"labels shape : {labels.shape}")
             # outputs = model(images, behavior_feat)
             outputs = model(behavior_feat)
             # outputs = model(audio)
@@ -203,6 +219,10 @@ def main(args):
         with torch.no_grad():
             for behavior_feat, labels in test_loader:
                 behavior_feat, labels = behavior_feat.to(device), labels.to(device)
+                try:
+                    behavior_feat = behavior_feat.reshape(batch,-1)
+                except:
+                    behavior_feat = behavior_feat.reshape(-1,12)
                 # outputs = model(images, behavior_feat)
                 outputs = model(behavior_feat)
                 # outputs = model(audio)

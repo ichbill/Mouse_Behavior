@@ -87,111 +87,82 @@ class AudioModel(nn.Module):
         output = self.classifier(meta)
         return output
 
-# class BehaviorModel(nn.Module):
-#     def __init__(self,num_features,num_classes):
-#         super(BehaviorModel,self).__init__()
-#         self.input_size = num_features
-#         self.hidden_size= 16        #hidden_size #40
-#         self.layer_size = 1         #layer_size
-#         self.output_size = num_classes
-
-#         # self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearility = 'relu')
-#         self.rnn = nn.GRU(self.input_size, self.hidden_size, num_layers= self.layer_size, batch_first=True)
-        
-#         self.layer_norm = nn.LayerNorm(self.hidden_size)
-#         #self.fc = nn.Sequential(nn.Linear(self.hidden_size*10,self.output_size)) # 10 is window size
-#         # self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
-#         self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, self.output_size),
-#                                 nn.BatchNorm1d(2))
-#                                 # nn.ReLU())
-#                                 # nn.Linear(32,self.output_size),
-#                                 # nn.BatchNorm1d(2),
-#                                 # nn.ReLU())
-        
-#         # self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, 64), 
-#         #                         # nn.ReLU(),
-#         #                         # nn.Linear(128,256),
-        
-#         #                         # nn.BatchNorm1d(256),
-#         #                         # nn.ReLU(),
-#         #                         # nn.Linear(256,128),
-#         #                         # nn.BatchNorm1d(128),
-#         #                         # #nn.Dropout(0.1),
-#         #                         # nn.ReLU(),
-#         #                         # nn.Linear(128,64),
-#         #                         # nn.BatchNorm1d(64),
-#         #                         # # nn.Dropout(0.1),
-#         #                         # nn.ReLU(),
-#         #                         nn.Linear(64,32),
-#         #                         nn.BatchNorm1d(32),
-#         #                         # nn.Dropout(0.1),
-#         #                         nn.ReLU(),
-#         #                         nn.Linear(32,16),
-#         #                         nn.BatchNorm1d(16),
-#         #                         # nn.Dropout(0.25),
-#         #                         nn.ReLU(),
-#         #                         # nn.Dropout(0.1),
-#         #                         nn.Linear(16, self.output_size))   
-
-#     def forward(self,behavior_feat):
-#         # Convert input data to torch.float32
-#         behavior_feat = behavior_feat.to(torch.float32)
-#         # Instantitate hidden_state at timestamp 0 
-#         # hidden_state = torch.zeros(self.layer_size, behavior_feat[0], self.hidden_size)
-#         # behavior_feat.size(0) : batch_size 
-#         #hidden_state = (num_layer, batch_size, hidden_size)
-
-#         hidden_state = torch.zeros(self.layer_size, behavior_feat.size(0), self.hidden_size)
-#         cell_state = torch.zeros(self.layer_size, behavior_feat.size(0), self.hidden_size)
-#         hidden_state = hidden_state.requires_grad_()
-
-#         m = nn.BatchNorm1d(5)
-#         behavior_feat = m(behavior_feat)
-#         output, _ = self.rnn(behavior_feat,hidden_state.detach())
-#         # output, _ = self.rnn(behavior_feat,(hidden_state.detach(),cell_state.detach()))
-#         output = self.layer_norm(output)
-#         output = output.reshape(output.shape[0],-1)
-#         # print(output.shape)
-#         output = self.fc(output)
-#         return output
-
-
 class BehaviorModel(nn.Module):
-  def __init__(self, num_features, num_classes):
-    super(BehaviorModel, self).__init__()
-    self.input_size = num_features
-    self.hidden_size = 16  # hidden_size
-    self.layer_size = 1  # layer_size
-    self.output_size = num_classes
+    def __init__(self,num_features,num_classes):
+        super(BehaviorModel,self).__init__()
+        self.input_size = num_features
+        self.hidden_size= 16        #hidden_size #40
+        self.layer_size = 1         #layer_size
+        self.output_size = num_classes
+        self.window_size= 1
+        # self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearility = 'relu')
+        # self.rnn = nn.GRU(self.input_size, self.hidden_size, num_layers= self.layer_size, batch_first=True)
+        
+        # self.layer_norm = nn.LayerNorm(self.hidden_size)
+        #self.fc = nn.Sequential(nn.Linear(self.hidden_size*10,self.output_size)) # 10 is window size
+        # self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
+        # for ANN
+        self.fc = nn.Sequential(nn.Linear(self.input_size,8),
+                                nn.BatchNorm1d(8),
+                                nn.ReLU(),
+                                nn.Linear(8,self.output_size),
+                                nn.BatchNorm1d(self.output_size),
+                                )
 
-    self.fc1 = nn.Linear(self.input_size, 64)
-    self.fc2 = nn.Linear(64, 32)
-    self.fc3 = nn.Linear(32, self.hidden_size)
-    self.fc4 = nn.Linear(5 * self.hidden_size, self.output_size)
+        # self.fc = nn.Sequential(nn.Linear(self.hidden_size*self.window_size, 8),
+        #                         nn.BatchNorm1d(8),
+        #                         nn.ReLU(),
+        #                         nn.Linear(8,self.output_size),
+        #                         nn.BatchNorm1d(self.output_size),
+        #                         )
+        
+        # self.fc = nn.Sequential(nn.Linear(self.hidden_size*5, 64), 
+        #                         # nn.ReLU(),
+        #                         # nn.Linear(128,256),
+        
+        #                         # nn.BatchNorm1d(256),
+        #                         # nn.ReLU(),
+        #                         # nn.Linear(256,128),
+        #                         # nn.BatchNorm1d(128),
+        #                         # #nn.Dropout(0.1),
+        #                         # nn.ReLU(),
+        #                         # nn.Linear(128,64),
+        #                         # nn.BatchNorm1d(64),
+        #                         # # nn.Dropout(0.1),
+        #                         # nn.ReLU(),
+        #                         nn.Linear(64,32),
+        #                         nn.BatchNorm1d(32),
+        #                         # nn.Dropout(0.1),
+        #                         nn.ReLU(),
+        #                         nn.Linear(32,16),
+        #                         nn.BatchNorm1d(16),
+        #                         # nn.Dropout(0.25),
+        #                         nn.ReLU(),
+        #                         # nn.Dropout(0.1),
+        #                         nn.Linear(16, self.output_size))   
 
-  def forward(self, behavior_feat):
-    # Convert input data to torch.float32
-    behavior_feat = behavior_feat.to(torch.float32)
+    def forward(self,behavior_feat):
+        # Convert input data to torch.float32
+        behavior_feat = behavior_feat.to(torch.float32)
+        # Instantitate hidden_state at timestamp 0 
+        # hidden_state = torch.zeros(self.layer_size, behavior_feat[0], self.hidden_size)
+        # behavior_feat.size(0) : batch_size 
+        #hidden_state = (num_layer, batch_size, hidden_size)
 
-    # First layer
-    output = self.fc1(behavior_feat)
-    output = nn.ReLU()(output)
+        # hidden_state = torch.zeros(self.layer_size, behavior_feat.size(0), self.hidden_size)
+        # cell_state = torch.zeros(self.layer_size, behavior_feat.size(0), self.hidden_size)
+        # hidden_state = hidden_state.requires_grad_()
 
-    # Second layer
-    output = self.fc2(output)
-    output = nn.ReLU()(output)
+        # m = nn.BatchNorm1d(1)
+        # behavior_feat = m(behavior_feat)
+        # output, _ = self.rnn(behavior_feat,hidden_state.detach())
+        # output, _ = self.rnn(behavior_feat,(hidden_state.detach(),cell_state.detach()))
+        # output = self.layer_norm(output)
+        # output = output.reshape(output.shape[0],-1)
+        # print(output.shape)
+        output = self.fc(behavior_feat)
+        return output
 
-    # Third layer
-    output = self.fc3(output)
-    output = nn.ReLU()(output)
-
-    # Reshape the output
-    output = output.reshape(output.shape[0], -1)
-
-    # Output layer
-    output = self.fc4(output)
-
-    return output
 
 
 

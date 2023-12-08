@@ -66,8 +66,8 @@ def time_to_frame(time):
     return total_seconds * 30
 
 def sliding_window(pose_keypoints, label_data):
-    step = 5
-    stride = 5
+    step = 1
+    stride = 1
     # sliding window for pose
     # if args.local_rank == 0:
     print('pose_keypoints shape:', pose_keypoints.shape)
