@@ -91,7 +91,7 @@ class BehaviorModel(nn.Module):
     def __init__(self,num_features,num_classes):
         super(BehaviorModel,self).__init__()
         self.input_size = num_features
-        self.hidden_size= 16        #hidden_size #40
+        self.hidden_size= 64        #hidden_size #40
         self.layer_size = 1         #layer_size
         self.output_size = num_classes
         self.window_size= 1
@@ -102,12 +102,27 @@ class BehaviorModel(nn.Module):
         #self.fc = nn.Sequential(nn.Linear(self.hidden_size*10,self.output_size)) # 10 is window size
         # self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
         # for ANN
-        self.fc = nn.Sequential(nn.Linear(self.input_size,8),
+        self.fc = nn.Sequential(nn.Linear(self.input_size,32),
+                                nn.BatchNorm1d(32),
+                                nn.ReLU(),
+                                nn.Linear(32,16),
+                                nn.BatchNorm1d(16),
+                                nn.ReLU(),
+                                nn.Linear(16,8),
                                 nn.BatchNorm1d(8),
                                 nn.ReLU(),
                                 nn.Linear(8,self.output_size),
                                 nn.BatchNorm1d(self.output_size),
                                 )
+        # self.fc = nn.Sequential(nn.Linear(self.input_size,16),
+        #                         nn.BatchNorm1d(16),
+        #                         nn.ReLU(),
+        #                         nn.Linear(16,8),
+        #                         nn.BatchNorm1d(8),
+        #                         nn.ReLU(),
+        #                         nn.Linear(8,self.output_size),
+        #                         nn.BatchNorm1d(self.output_size),
+        #                         )
 
         # self.fc = nn.Sequential(nn.Linear(self.hidden_size*self.window_size, 8),
         #                         nn.BatchNorm1d(8),
