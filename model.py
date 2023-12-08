@@ -94,7 +94,7 @@ class BehaviorModel(nn.Module):
         self.hidden_size= 64        #hidden_size #40
         self.layer_size = 1         #layer_size
         self.output_size = num_classes
-        self.window_size= 1
+        self.window_size= 0
         # self.rnn = nn.RNN(self.input_size, self.hidden_size, self.layer_size, batch_first=True, nonlinearility = 'relu')
         # self.rnn = nn.GRU(self.input_size, self.hidden_size, num_layers= self.layer_size, batch_first=True)
         
@@ -102,6 +102,7 @@ class BehaviorModel(nn.Module):
         #self.fc = nn.Sequential(nn.Linear(self.hidden_size*10,self.output_size)) # 10 is window size
         # self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
         # for ANN
+
         self.fc = nn.Sequential(nn.Linear(self.input_size,32),
                                 nn.BatchNorm1d(32),
                                 nn.ReLU(),
