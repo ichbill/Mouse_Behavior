@@ -27,7 +27,7 @@ def parse_args():
     # data path
     # parser.add_argument('--video_path', default="/data/zhaozhenghao/Projects/Mouse_behavior/dataset/Formalin/frame_folder", type=str, dest='video_path', help='Video path.')
     parser.add_argument('--pred_path', default='alphapose-results.json', type=str, dest='pred_path', help='Prediction path.')
-    parser.add_argument('--label_path', default='Formalin_acute_pain_1.xlsx', type=str, dest='label_path', help='Label path.')
+    parser.add_argument('--label_path', default='Formalin_Acute_Pain_New_analyse.xlsx', type=str, dest='label_path', help='Label path.')
     # parser.add_argument('--audio_path', default='/data/zhaozhenghao/Projects/Mouse_behavior/dataset/Formalin/Formalin_Ultrasound_recording.wav', type=str, dest='audio_path', help='Audio path.')
 
     # hyperparameters
