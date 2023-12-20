@@ -188,40 +188,27 @@ class BehaviorModel(nn.Module):
 class VisionModel_JJ(nn.Module):
     def __init__(self, num_meta_features, num_classes):
         super(VisionModel, self).__init__()
-
-        self.resnet = models.resnet18(pretrained=True)
-        self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
-        self.image_fc = nn.Linear(512, 256) 
-
-        self.meta_fc = nn.Sequential(
-            nn.Linear(num_meta_features, 128),
-            nn.ReLU(),
-            nn.Dropout(0.25),
-            nn.Linear(128, 256)
+        # LeNet-5
+        self.feature_extractor = nn.Sequential(
+            nn.Conv2d(in_channels=3,out_channels=6,kernel_size=5,stride=1),
+            nn.Tanh(),
+            nn.AvgPool2d(kernel_size=2,stride=2),
+            nn.Conv2d(in_channels=6,out_channels=16,kernel_size=5,stride=1),
+            nn.Tanh(),
+            nn.AvgPool2d(kernel_size=2),
+            nn.Conv2d(in_channels=16,out_channels=120,kernel_size=5,stride=1),
+            nn.Tanh())
+        self.classfier=nn.Sequential(
+            nn.Linear(in_features=120,out_features=84),
+            nn.Tanh(),
+            nn.Linear(in_features=84,out_features=num_classes)
         )
-
-        self.classifier = nn.Linear(256*2, num_classes)
-
-    def forward_features(self, image, meta):
-        batch_size, num_frames, c, h, w = image.shape
-        image = image.view(batch_size*num_frames, c, h, w)
-
-        image = self.resnet(image)
-        image = image.view(batch_size, num_frames, -1)
-        image = self.image_fc(image)
-        image = image.mean(dim=1) 
-
-        meta = meta.to(torch.float32)
-        meta = self.meta_fc(meta)
-        meta = meta.mean(dim=1)
-
-        combined = torch.cat((image, meta), dim=1)
-        return combined
-
-    def forward(self, image, meta):
-        combined = self.forward_features(image, meta)
-        output = self.classifier(combined)
-        return output
+    def forward(self,x):
+        x = self.feature_extractor(x)
+        x = torch.flatten(x,1)
+        logits = self.classfier(x)
+        # probs = F.softmax(logits,dim=1)
+        return logits
 
 
 
