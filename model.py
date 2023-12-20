@@ -91,7 +91,7 @@ class BehaviorModel(nn.Module):
     def __init__(self,num_features,num_classes):
         super(BehaviorModel,self).__init__()
         self.input_size = num_features
-        self.hidden_size= 64        #hidden_size #40
+        self.hidden_size= 512        #hidden_size #40
         self.layer_size = 1         #layer_size
         self.output_size = num_classes
         self.window_size= 0
@@ -103,27 +103,33 @@ class BehaviorModel(nn.Module):
         # self.fc  = nn.Linear(self.hidden_size*5,self.output_size, bias=True)
         # for ANN
 
-        self.fc = nn.Sequential(nn.Linear(self.input_size,32),
+        self.fc = nn.Sequential(nn.Linear(self.input_size,256),  
+                                nn.BatchNorm1d(256),
+                                nn.ReLU(),
+                                # nn.Dropout(0.1),
+                                nn.Linear(256,128),                                                             
+                                nn.BatchNorm1d(128),
+                                nn.ReLU(),
+                                # nn.Dropout(0.1),
+                                nn.Linear(128,64),
+                                nn.BatchNorm1d(64),
+                                nn.ReLU(),
+                                # nn.Dropout(0.1),
+                                nn.Linear(64,32),
                                 nn.BatchNorm1d(32),
                                 nn.ReLU(),
+                                # nn.Dropout(0.1),
                                 nn.Linear(32,16),
                                 nn.BatchNorm1d(16),
                                 nn.ReLU(),
+                                # nn.Dropout(0.1),
                                 nn.Linear(16,8),
                                 nn.BatchNorm1d(8),
                                 nn.ReLU(),
+                                # nn.Dropout(0.1),
                                 nn.Linear(8,self.output_size),
                                 nn.BatchNorm1d(self.output_size),
                                 )
-        # self.fc = nn.Sequential(nn.Linear(self.input_size,16),
-        #                         nn.BatchNorm1d(16),
-        #                         nn.ReLU(),
-        #                         nn.Linear(16,8),
-        #                         nn.BatchNorm1d(8),
-        #                         nn.ReLU(),
-        #                         nn.Linear(8,self.output_size),
-        #                         nn.BatchNorm1d(self.output_size),
-        #                         )
 
         # self.fc = nn.Sequential(nn.Linear(self.hidden_size*self.window_size, 8),
         #                         nn.BatchNorm1d(8),
@@ -177,6 +183,44 @@ class BehaviorModel(nn.Module):
         # output = output.reshape(output.shape[0],-1)
         # print(output.shape)
         output = self.fc(behavior_feat)
+        return output
+    
+class VisionModel_JJ(nn.Module):
+    def __init__(self, num_meta_features, num_classes):
+        super(VisionModel, self).__init__()
+
+        self.resnet = models.resnet18(pretrained=True)
+        self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
+        self.image_fc = nn.Linear(512, 256) 
+
+        self.meta_fc = nn.Sequential(
+            nn.Linear(num_meta_features, 128),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(128, 256)
+        )
+
+        self.classifier = nn.Linear(256*2, num_classes)
+
+    def forward_features(self, image, meta):
+        batch_size, num_frames, c, h, w = image.shape
+        image = image.view(batch_size*num_frames, c, h, w)
+
+        image = self.resnet(image)
+        image = image.view(batch_size, num_frames, -1)
+        image = self.image_fc(image)
+        image = image.mean(dim=1) 
+
+        meta = meta.to(torch.float32)
+        meta = self.meta_fc(meta)
+        meta = meta.mean(dim=1)
+
+        combined = torch.cat((image, meta), dim=1)
+        return combined
+
+    def forward(self, image, meta):
+        combined = self.forward_features(image, meta)
+        output = self.classifier(combined)
         return output
 
 

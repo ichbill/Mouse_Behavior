@@ -14,9 +14,9 @@ def one_hot_encode(labels):
     one_hot_labels = [0,0]
     # if ' habituation' in labels:
     #     one_hot_labels[0] = 1
-    if ' flinching' in labels:
+    if 'flinching' in labels:
         one_hot_labels[0] = 1
-    if ' licking' in labels:
+    if 'licking' in labels:
         one_hot_labels[1] = 1
     return one_hot_labels
 
@@ -54,6 +54,14 @@ def interploate_pose(pose_pred):
     pose_keypoints = np.delete(pose_keypoints, [2,5,8,11,14,17], axis=1) # remove score
     return pose_keypoints
 
+def standardize_labels(label_data):
+    standardized_labels = []
+    for label in label_data:
+        # Convert label to lowercase and strip leading and trailing spaces
+        standardized_label = label.lower().strip()
+        standardized_labels.append(standardized_label)
+    return standardized_labels
+
 def time_to_frame(time):
     time_str = str(time)
     if len(time_str) > 5:
@@ -66,6 +74,7 @@ def time_to_frame(time):
     return total_seconds * 30
 
 def sliding_window(pose_keypoints, label_data):
+    label_data = standardize_labels(label_data)
     step = 1
     stride = 1
     # sliding window for pose
@@ -211,14 +220,19 @@ class MouseDataset(Dataset):
     def load_Formalin_labels(self, total_frames):
         label_dataframe = pd.read_excel(self.label_path)
 
-        label_data = ['no behavior'] * total_frames
+        label_data = ['no behavior'] * int(total_frames)
         for index, record in label_dataframe.iterrows():
+
             start_frame = time_to_frame(record[0])
             end_frame = time_to_frame(record[1])
-            behavior = record[2]
-            for i in range(start_frame, end_frame):
+            
+            if end_frame-start_frame==0:
+                end_frame = start_frame + 30 
+            behavior = record[3]
+            for i in range(int(start_frame), int(end_frame)):
                 label_data[i] = behavior
         return label_data
+    
 
     def __len__(self):
         return np.sum(self.valid_indices)

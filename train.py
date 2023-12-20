@@ -27,12 +27,12 @@ def parse_args():
     # data path
     # parser.add_argument('--video_path', default="/data/zhaozhenghao/Projects/Mouse_behavior/dataset/Formalin/frame_folder", type=str, dest='video_path', help='Video path.')
     parser.add_argument('--pred_path', default='alphapose-results.json', type=str, dest='pred_path', help='Prediction path.')
-    parser.add_argument('--label_path', default='Formalin_acute_pain_1.xlsx', type=str, dest='label_path', help='Label path.')
+    parser.add_argument('--label_path', default='Formalin_Acute_Pain_New_analyse.xlsx', type=str, dest='label_path', help='Label path.')
     # parser.add_argument('--audio_path', default='/data/zhaozhenghao/Projects/Mouse_behavior/dataset/Formalin/Formalin_Ultrasound_recording.wav', type=str, dest='audio_path', help='Audio path.')
 
     # hyperparameters
-    parser.add_argument('--learning_rate', type=float, default=0.005)
-    parser.add_argument('--num_epochs', type=int, default=50)
+    parser.add_argument('--learning_rate', type=float, default=0.01)
+    parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=64)
 
     # parameters
@@ -147,10 +147,10 @@ def main(args):
     
 
     criterion = nn.BCEWithLogitsLoss()
-    #criterion = nn.BCELoss()
+    #criterion = nn.BCELoss()s
     ## criterion = nn.MSELoss()
     # optimizer = Adam(model.parameters(), lr=args.learning_rate)
-    learning_rate=0.005
+    learning_rate=0.01
     optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate, lr_decay=0, weight_decay=0, initial_accumulator_value=0, eps=1e-10)
     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
     best_valid_loss = float('inf')
@@ -158,7 +158,7 @@ def main(args):
     train_accuracy_list=[]
     test_loss_list = []
     test_accuracy_list=[]
-    early_stopping_epochs=20
+    early_stopping_epochs=200
     best_loss=float('inf')
     early_stop_counter=0
 
